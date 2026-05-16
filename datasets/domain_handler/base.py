@@ -87,9 +87,22 @@ class BaseHDF5Handler(DomainHandler):
 
     def read_instruction(self, f: h5py.File) -> str:
         key: str = self.meta["language_instruction_key"]
-        ds = f[key]
-        v = ds[()]
-        return v.decode() if getattr(ds, "shape", ()) == () else v[0].decode()
+        if key in f:
+            ds = f[key]
+            v = ds[()]
+        elif key in f.attrs:
+            v = f.attrs[key]
+        else:
+            raise KeyError(f"Missing language instruction key '{key}' in datasets and attrs")
+
+        if isinstance(v, np.ndarray):
+            if v.shape == ():
+                v = v.item()
+            elif len(v) > 0:
+                v = v[0]
+        if isinstance(v, bytes):
+            return v.decode()
+        return str(v)
 
     # --- Required hooks -----------------------------------------------------
     def build_left_right(

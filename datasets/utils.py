@@ -43,13 +43,50 @@ def read_parquet(path: str) -> dict:
     return pq.read_table(buf).to_pydict()
 
 def decode_image_from_bytes(x) -> Image.Image:
-    if isinstance(x, (bytes, bytearray)): x = np.frombuffer(x, dtype=np.uint8)
-    rgb = cv2.imdecode(x, cv2.IMREAD_COLOR)
-    if rgb is None:
-        rgb = np.frombuffer(x, dtype=np.uint8)
-        if rgb.size == 2764800: rgb = rgb.reshape(720, 1280, 3)
-        elif rgb.size == 921600: rgb = rgb.reshape(480, 640, 3)
-    return Image.fromarray(rgb)
+    """
+    Decode one image sample from either:
+      - encoded image bytes / uint8 buffer
+      - raw uint8 image arrays, e.g. [H, W, 3]
+    """
+    if isinstance(x, Image.Image):
+        return x
+
+    if isinstance(x, np.ndarray) and x.ndim == 0:
+        x = x.item()
+
+    if isinstance(x, (bytes, bytearray, memoryview)):
+        x = np.frombuffer(x, dtype=np.uint8)
+
+    if isinstance(x, np.ndarray):
+        if x.ndim == 3:
+            if x.dtype != np.uint8:
+                x = x.astype(np.uint8)
+            if x.shape[-1] == 3:
+                return Image.fromarray(x, mode="RGB")
+            if x.shape[-1] == 4:
+                return Image.fromarray(x, mode="RGBA").convert("RGB")
+            if x.shape[-1] == 1:
+                return Image.fromarray(x[..., 0], mode="L").convert("RGB")
+        if x.ndim == 2:
+            if x.dtype != np.uint8:
+                x = x.astype(np.uint8)
+            return Image.fromarray(x, mode="L").convert("RGB")
+        if x.ndim == 1:
+            buf = np.ascontiguousarray(x.astype(np.uint8, copy=False))
+            rgb = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+            if rgb is not None:
+                return Image.fromarray(cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB))
+
+            # Fallback for a few known raw packed resolutions.
+            if buf.size == 2764800:
+                return Image.fromarray(buf.reshape(720, 1280, 3), mode="RGB")
+            if buf.size == 921600:
+                return Image.fromarray(buf.reshape(480, 640, 3), mode="RGB")
+
+    raise ValueError(
+        "Unsupported image sample format for decoding: "
+        f"type={type(x)}, shape={getattr(x, 'shape', None)}, dtype={getattr(x, 'dtype', None)}"
+    )
 
 def quat_to_rotate6d(q: np.ndarray, scalar_first = False) -> np.ndarray:
     return R.from_quat(q, scalar_first = scalar_first).as_matrix()[..., :, :2].reshape(q.shape[:-1] + (6,))

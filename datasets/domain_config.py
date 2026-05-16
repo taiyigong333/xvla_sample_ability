@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 DATA_WEIGHTS = {
+    "robomind-ur-30-only": 0.3,
+    "robomind-ur-50-type5": 0.7,
     "robomind-franka": 0.1,
     "robomind-ur": 0.1,
     "Droid-Left": 0.15,

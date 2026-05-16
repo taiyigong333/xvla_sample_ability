@@ -42,10 +42,44 @@ class RobomindHandler(BaseHDF5Handler):
 
     dataset_name = "robomind-*"
 
+    @staticmethod
+    def _resolve_variant(meta: dict) -> str:
+        """
+        Resolve the canonical robomind variant from meta information.
+
+        `dataset_name` can be a unique alias such as "robomind-ur-set-a",
+        while `robot_type` describes the real robot layout the handler should
+        decode. Prefer `robot_type` when present and keep a prefix fallback for
+        older metas.
+        """
+        robot_type = meta.get("robot_type")
+        if robot_type in {
+            "robomind-franka",
+            "robomind-ur",
+            "robomind-agilex",
+            "robomind-franka-dual",
+        }:
+            return robot_type
+
+        ds_name = meta.get("dataset_name", "")
+        for prefix in (
+            "robomind-franka-dual",
+            "robomind-franka",
+            "robomind-ur",
+            "robomind-agilex",
+        ):
+            if ds_name == prefix or ds_name.startswith(prefix + "-"):
+                return prefix
+
+        raise NotImplementedError(
+            "RobomindHandler: unsupported dataset "
+            f"dataset_name='{meta.get('dataset_name')}', robot_type='{robot_type}'"
+        )
+
     def build_left_right(
         self, f: h5py.File
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray], float, float]:
-        ds_name: str = self.meta["dataset_name"]
+        ds_name = self._resolve_variant(self.meta)
 
         if ds_name in ("robomind-franka", "robomind-ur"):
             # Single arm; right is dummy zeros.
