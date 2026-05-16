@@ -1,321 +1,85 @@
+# X-VLA 当前代码说明
 
+这份仓库当前更适合作为本地训练、LoRA 微调和部署工作副本使用。根 README 只保留和当前代码直接相关的说明；上游论文式长 README 已归档到 [doc/0_上游README.md](doc/0_上游README.md)。
 
-# 🤖 X-VLA: Soft-Prompted Transformer as a Scalable Cross-Embodiment Vision-Language-Action Model
+## 当前包含什么
 
-| 📄 **Paper** | 🌐 **Project Page** | 🤗 **Hugging Face** |
-| :---: | :---: | :---: |
-| [Read the Full Research](https://arxiv.org/pdf/2510.10274) | [Explore the Demos](https://thu-air-dream.github.io/X-VLA/) | [Access Models & Datasets](https://huggingface.co/collections/2toINF/x-vla) |
+- `deploy.py`：启动 XVLA 推理服务，支持 `--model_path`、`--processor_path`、`--LoRA_path`、`--host`、`--port`，并在 `--output_dir` 下写入 `info.json`。
+- `train.py`：常规训练入口，使用 `accelerate` 和 `datasets.create_dataloader(...)` 读取 meta 并保存 checkpoint。
+- `peft_train.py`：LoRA 微调入口，在训练流程上包了一层 `peft`。
+- `datasets/`：数据读取、domain 配置、handler 注册与动作/观测预处理。
+- `models/`：`XVLA`、processor、transformer、action space 等核心实现。
+- `evaluation/`：不同 benchmark 和机器人域的评测与参考客户端。
+- `doc/`：本地补充文档、示例 meta、工具脚本和归档说明。
 
+## 目录速览
 
-## 🏆 Highlights & News
-
-### 🎉 Exciting News: X-VLA Accepted to ICLR 2026  
-We are thrilled to announce that **X-VLA has been accepted to ICLR 2026**.
-
-### 🚀 Now Supported in LeRobot  
-X-VLA is now natively integrated into the [LeRobot platform](https://huggingface.co/docs/lerobot/xvla).  
-Give it a try! We sincerely appreciate the support and collaboration from the Hugging Face team.
-
-### 🥇 Champion Winner at IROS 2025  
-X-VLA won **1st Place (Champion)** at the **AgiBot World Challenge**, held at **IROS 2025**.
-
-
----
-
-## 🧩 Overview
-
-Successful generalist **Vision–Language–Action (VLA)** models depend on scalable, cross-platform training across diverse robotic embodiments.  
-To leverage the heterogeneity of large-scale robot datasets, **X-VLA** introduces a **soft prompt** mechanism — embodiment-specific learnable embeddings that guide a unified Transformer backbone toward effective multi-domain policy learning.
-
-The resulting architecture — **X-VLA-0.9B** — achieves **state-of-the-art generalization** across six simulation platforms and three real-world robots, surpassing prior VLA approaches in dexterity, adaptability, and efficiency.
-
-https://github.com/user-attachments/assets/c047bac4-17c3-4d66-8036-badfab2b8c41
-
----
-
-## 🚀 Quick Start: Installation & Deployment
-
-### 1️⃣ Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/2toinf/X-VLA.git
-cd X-VLA
+```text
+deploy.py                      推理服务入口
+train.py                       常规训练入口
+peft_train.py                  LoRA 微调入口
+datasets/                      数据集封装、domain handler、注册与工具函数
+models/                        XVLA 模型、processor、transformer、action 相关实现
+evaluation/                    各任务/机器人域评测脚本
+logs/                          推理服务输出目录（默认可写入 info.json）
+runnings/                      训练输出目录（checkpoint、tensorboard 等）
+doc/                           本地文档与辅助脚本
 ```
 
-```bash
-# Create and activate Conda environment
-conda create -n XVLA python=3.10 -y
-conda activate XVLA
+## 常用命令
 
-# Install dependencies
-pip install -r requirements.txt
-```
-
-or 
+### 1. 安装环境
 
 ```bash
 conda env create -f environment.yml
 conda activate xvla-stable
 ```
 
----
-### 2️⃣ Deploying X-VLA for Inference
-
-X-VLA adopts a **Server–Client** architecture to separate the model environment from simulation or robot-specific dependencies.
-This design avoids package conflicts and supports distributed inference across GPUs, SLURM clusters, or edge devices.
-
-#### 🧠 Available Pre-trained Models
-
-- [ ] We observed a slight performance drop (around 1% across different datasets) after converting our models to the HF format, and we’re actively investigating the cause.
-
-#### 🧠 About Libero Setup and Evluation
-
-- [x] For questions about converting relative actions to absolute actions and our implementation, please first refer to issue [#2](https://github.com/2toinf/X-VLA/issues/2) and [#15](https://github.com/2toinf/X-VLA/issues/15). We have updated full preprocessing guidance [here](https://github.com/2toinf/X-VLA/blob/main/evaluation/libero/preprocess.md).
-
-#### 🔥 Update: We have released the LoRA fine-tuning code, along with checkpoints and the associated inference code.
-
-| Model ID                                                                                           | Embodiment        | Description                                                                                     |   Performance   | Evaluation Guidance |
-| :------------------------------------------------------------------------------------------------- | :---------------- | :---------------------------------------------------------------------------------------------- | :--------------: | :-----------------: |
-| [`2toINF/X-VLA-Pt`](https://huggingface.co/2toINF/X-VLA-Pt)                                        | Foundation        | Pretrained on large-scale heterogeneous robot–vision–language datasets for general transfer.     | —                | —                   |
-| [`2toINF/X-VLA-AgiWorld-Challenge`](https://huggingface.co/2toINF/X-VLA-AgiWorld-Challenge)        | Agibot-G1          | Fine-tuned for AgiWorld Challenge.       | **Champion🥇**        | -  |
-| [`2toINF/X-VLA-Calvin-ABC_D`](https://huggingface.co/2toINF/X-VLA-Calvin-ABC_D)                    | Franka     | Fine-tuned on CALVIN benchmark (ABC_D subset)              | **4.43**        | [Calvin Eval](evaluation/calvin/README.md)          |
-| [`2toINF/X-VLA-Google-Robot`](https://huggingface.co/2toINF/X-VLA-Google-Robot)                    | Google Robot      |  Fine-tuned on large-scale Google Robot dataset                | **83.5%(VM) 76.4%(VA)**        | [Simpler Eval](evaluation/simpler/README.md)   |
-| [`2toINF/X-VLA-Libero`](https://huggingface.co/2toINF/X-VLA-Libero)                                | Franka            | Fine-tuned on LIBERO benchmark                     | **98.1%**        | [LIBERO Eval](evaluation/libero/README.md)         |
-| [`2toINF/X-VLA-VLABench`](https://huggingface.co/2toINF/X-VLA-VLABench)                                | Franka            | Fine-tuned on VLABench benchmark                     | **51.1(score)**        | [VLABench Eval](evaluation/vlabench/README.md)        |
-| [`2toINF/X-VLA-RoboTwin2`](https://huggingface.co/2toINF/X-VLA-RoboTwin2)                          | Agilex        | Trained on RoboTwin2 dataset for dual-arm coordinated manipulation(50 demos for each task).                     | **70%**        |   [RoboTwin2.0 Eval](evaluation/robotwin-2.0/README.md)    |
-| [`2toINF/X-VLA-WidowX`](https://huggingface.co/2toINF/X-VLA-WidowX)                | WidowX  | Fine-tuned on BridgeDataV2 (Simpler benchmark).                                                  | **95.8%**        | [Simpler Eval](evaluation/simpler/README.md) |
-| [`2toINF/X-VLA-SoftFold`](https://huggingface.co/2toINF/X-VLA-SoftFold)                            | Agilex          | Fine-tuned on Soft-Fold Dataset. Specialized in deformable object manipulation (e.g., folding and cloth control).                 | cloth folding with a 100% success rate in 2 hours.  |  [SoftFold-Agilex](evaluation/SoftFold-Agilex/readme.md)   |
-| LoRA Adapters | ||  | |
-| [`2toINF/X-VLA-libero-spatial-peft`](https://huggingface.co/2toINF/X-VLA-libero-spatial-peft)                                | Franka            | Fine-tuned on LIBERO benchmark                     | **96.2%**        | [LIBERO Eval](evaluation/libero/README.md)         |
-| [`2toINF/X-VLA-libero-object-peft`](https://huggingface.co/2toINF/X-VLA-libero-object-peft)                                | Franka            | Fine-tuned on LIBERO benchmark                     | **96%**        | [LIBERO Eval](evaluation/libero/README.md)         |
-| [`2toINF/X-VLA-libero-goal-peft`](https://huggingface.co/2toINF/X-VLA-libero-goal-peft)                                | Franka            | Fine-tuned on LIBERO benchmark                     | **94.4%**        | [LIBERO Eval](evaluation/libero/README.md)         |
-| [`2toINF/X-VLA-libero-long-peft`](https://huggingface.co/2toINF/X-VLA-libero-long-peft)                                | Franka            | Fine-tuned on LIBERO benchmark                     | **83.2%**        | [LIBERO Eval](evaluation/libero/README.md)         |
-| [`2toINF/X-VLA-simpler-widowx-peft`](https://huggingface.co/2toINF/X-VLA-simpler-widowx-peft)                | WidowX  | Fine-tuned on BridgeDataV2 (Simpler benchmark).                                                  | **66.7%**        | [Simpler Eval](evaluation/simpler/README.md) |
-
----
-
-## 🧩 Notes
-
-- All models share a consistent architecture: `configuration_xvla.py`, `modeling_xvla.py`, and unified tokenizer (`tokenizer.json`).
-- The **X-VLA-Pt** model is the *foundation checkpoint*, trained across multiple robot domains.
-- Each embodiment is fine-tuned for its respective environment while retaining cross-embodiment alignment.
-- Evaluation scripts (in `evaluation/`) follow a standardized format for reproducible benchmarking.
-
----
-
-> 📊 Performance metrics follow standard evaluation protocols detailed in the [paper](https://arxiv.org/pdf/2510.10274).
-
----
-
-### 3️⃣ Launching the Inference Server
-
-```python
-from transformers import AutoModel, AutoProcessor
-import json_numpy
-
-# Load model and processor
-model = AutoModel.from_pretrained("2toINF/X-VLA-WidowX", trust_remote_code=True)
-processor = AutoProcessor.from_pretrained("2toINF/X-VLA-WidowX", trust_remote_code=True)
-
-# Start the inference server
-print("🚀 Starting X-VLA inference server...")
-model.run(processor, host="0.0.0.0", port=8000)
-```
-
-Once launched, the API endpoint is available at:
-
-```
-POST http://<server_ip>:8000/act
-```
-
----
-
-### 4️⃣ Client Interaction & Action Prediction
-
-The client communicates via HTTP POST, sending multimodal data (vision + language + proprioception) as a JSON payload.
-
-#### Payload Structure
-
-| Key                    | Type                      | Description                                           |
-| :--------------------- | :------------------------ | :---------------------------------------------------- |
-| `proprio`              | `json_numpy.dumps(array)` | Current proprioceptive state (e.g., joint positions). |
-| `language_instruction` | `str`                     | Task instruction (e.g., "Pick up the red block").     |
-| `image0`               | `json_numpy.dumps(array)` | Primary camera image (RGB).                           |
-| `image1`, `image2`     | *optional*                | Additional camera views if applicable.                |
-| `domain_id`            | `int`                     | Identifier for the current robotic embodiment/domain. |
-| `steps`                | `int`                     | denoising steps for flow-matching based generation (e.g., 10).         |
-
-#### Example Client Code
-
-```python
-import requests
-import numpy as np
-import json_numpy
-
-server_url = "http://localhost:8000/act"
-timeout = 5
-
-# Prepare inputs
-proprio = np.zeros(7, dtype=np.float32)
-image = np.zeros((256, 256, 3), dtype=np.uint8)
-instruction = "Move the gripper to the target position"
-
-payload = {
-    "proprio": json_numpy.dumps(proprio),
-    "language_instruction": instruction,
-    "image0": json_numpy.dumps(image),
-    "domain_id": 0,
-    "steps": 10
-}
-
-try:
-    response = requests.post(server_url, json=payload, timeout=timeout)
-    response.raise_for_status()
-    result = response.json()
-    actions = np.array(result["action"], dtype=np.float32)
-    print(f"✅ Received {actions.shape[0]} predicted actions.")
-except Exception as e:
-    print(f"⚠️ Request failed: {e}")
-    actions = np.zeros((30, 20), dtype=np.float32)
-```
-
-#### Expected Output
-
-```
-[Server] Model loaded successfully on cuda:0
-[Server] Listening on 0.0.0.0:8000
-[Client] Sending observation to server...
-✅ Received 30 predicted actions.
-```
-
----
-
-### 5️⃣ Standardized Control Interface: EE6D
-
-To ensure consistency across embodiments, **X-VLA** adopts a unified **EE6D (End-Effector 6D)** control space.
-
-| Component           | Specification                                                              | Notes                                         |
-| :------------------ | :------------------------------------------------------------------------- | :-------------------------------------------- |
-| **Proprio Input**   | Current EE6D pose (position + orientation)                                 | Must align with training-space normalization. |
-| **Action Output**   | Predicted target delta/absolute pose (EE6D)                                | Executed by downstream controller.            |
-| **Dimensionality**  | 20-D vector = 3 (EE Pos) + 6 (Rotation in 6D) + 1 (Gripper) + 10 (Padding) |                                               |
-| **Single-arm Case** | If only one arm exists, pad with zeros to maintain 20D vector.             |                                               |
-
-> ⚙️ **Reference Post-processing:**
->
-> ```python
-> from datasets.utils import rotate6d_to_xyz
-> action_final = np.concatenate([
->     action_pred[:3],
->     rotate6d_to_xyz(action_pred[3:9]),
->     np.array([1.0 if action_pred[9] > 0.5 else 0])
-> ])
-> ```
->
-> When feeding proprioception to the model, apply the **inverse transformation** accordingly.
-
----
-
-### 6️⃣ Reference Client Implementations
-
-Each released model includes a corresponding **reference client** under
-[`evaluation/<domain>/<robot>/client.py`](evaluation/) for reproducing exact deployment behaviors.
-We strongly recommend adapting from these clients when connecting to physical or simulated robots.
-
----
-
-### 7️⃣ SLURM & Cluster Deployment
-
-For large-scale or distributed training/deployment (e.g., HPC clusters, AgiBot nodes):
+或
 
 ```bash
-python -m deploy --model_path /path/to/your/model
+pip install -r requirements.txt
 ```
 
-This script automatically detects SLURM environment variables, launches distributed servers, and writes connection metadata to `info.json`.
-
----
-
-## ⚙️ Training / Fine-tuning on Custom Data
-
-X-VLA supports fine-tuning on new demonstrations via a modular and extensible dataset interface.
-
-### Data Preparation Workflow
-
-1. **Prepare Meta JSONs** — each domain has a `meta.json` listing trajectory file paths.
-2. **Implement Custom Handler** — write a domain loader class with `iter_episode(traj_idx)` generator.
-3. **Register Domain** — update:
-
-   * `datasets/domain_handler/registry.py`
-   * `datasets/domain_config.py`
-
-### Example Handlers
-
-| Handler       | Dataset               | Description                               |
-| :------------ | :-------------------- | :---------------------------------------- |
-| `"lerobot"`   | Agibot-Beta           | Optimized for LEROBOT format              |
-| `"h5py"`      | RoboMind / Simulation | Efficient loading from `.h5` trajectories |
-| `"scattered"` | AGIWorld              | Handles scattered trajectory storage      |
-
----
-
-### Launch Training with Accelerate
+### 2. 启动推理服务
 
 ```bash
-accelerate launch \
-    --mixed_precision bf16 \
-    train.py \
-    --models '2toINF/X-VLA-Pt' \
-    --train_metas_path /path/to/meta_files.json \
-    --learning_rate 1e-4 \
-    --learning_coef 0.1 \
-    --iters 50000 \
-    --freeze_steps 1000 \
-    --warmup_steps 2000
+python deploy.py --model_path /path/to/model --output_dir ./logs
 ```
 
-| Argument             | Description                            |
-| :------------------- | :------------------------------------- |
-| `--models`           | Base model (e.g., `'2toINF/X-VLA-Pt'`) |
-| `--train_metas_path` | Path to meta JSON file(s)              |
-| `--batch_size`       | Batch size                             |
-| `--learning_rate`    | Base LR                                |
-| `--learning_coef`    | LR multiplier for soft prompts         |
-| `--iters`            | Total training iterations              |
-| `--freeze_steps`     | Steps to freeze backbone               |
-| `--warmup_steps`     | Warmup iterations                      |
+如果 processor 或 LoRA 不和模型放在一起，可以额外传：
 
----
-
-
-## 📚 Citation
-
-If you use X-VLA in your research, please cite:
-
-```bibtex
-@article{zheng2025x,
-  title   = {X-VLA: Soft-Prompted Transformer as Scalable Cross-Embodiment Vision-Language-Action Model},
-  author  = {Zheng, Jinliang and Li, Jianxiong and Wang, Zhihao and Liu, Dongxiu and Kang, Xirui
-             and Feng, Yuchun and Zheng, Yinan and Zou, Jiayin and Chen, Yilun and Zeng, Jia and others},
-  journal = {arXiv preprint arXiv:2510.10274},
-  year    = {2025}
-}
+```bash
+python deploy.py --model_path /path/to/model --processor_path /path/to/processor --LoRA_path /path/to/lora --port 8010
 ```
 
----
+### 3. 常规训练
 
-## 🪪 License
-
-This repository is licensed under the **Apache License 2.0**.
-You may freely use, modify, and distribute the code under the terms of the license.
-
-```
-Copyright 2025 2toINF (https://github.com/2toinf)
-Licensed under the Apache License, Version 2.0.
+```bash
+accelerate launch train.py --models /path/to/model --train_metas_path /path/to/meta.json --output_dir runnings
 ```
 
----
+### 4. LoRA 微调
 
-**Maintained by [2toINF](https://github.com/2toinf)**
-💬 Feedback, issues, and contributions are welcome via GitHub Discussions or Pull Requests.
+```bash
+accelerate launch peft_train.py --models /path/to/model --train_metas_path /path/to/meta.json --output_dir runnings
+```
+
+## 数据接入位置
+
+如果要接入新的机器人域或数据格式，主要看这几个位置：
+
+- `datasets/domain_handler/`：新增或修改具体 handler。
+- `datasets/domain_handler/registry.py`：注册 handler 名称。
+- `datasets/domain_config.py`：补充 domain 配置。
+- `--train_metas_path`：传入训练所需的 meta 文件。
+
+## 文档索引
+
+- [doc/0_上游README.md](doc/0_上游README.md)：上游原始 README 归档版
+- [doc/1_robomind_ur_training.md](doc/1_robomind_ur_training.md)：RoboMind-UR 训练说明
+- [doc/2_multi_hdf5_and_continue_training.md](doc/2_multi_hdf5_and_continue_training.md)：多 HDF5 与续训说明
+- [doc/3_代码采样示例.md](doc/3_代码采样示例.md)：采样示例
+- [doc/4_方案B_双meta与采样权重详细说明.md](doc/4_方案B_双meta与采样权重详细说明.md)：双 meta 与采样权重说明
+- [doc/5_从HDF5文件夹生成meta_json说明.md](doc/5_从HDF5文件夹生成meta_json说明.md)：从 HDF5 文件夹生成 meta 的说明
+- [doc/5_generate_meta_from_hdf5_folder.py](doc/5_generate_meta_from_hdf5_folder.py)：配套生成脚本

@@ -1,0 +1,14 @@
+{
+  "dataset_name": "robomind-ur-set-a",
+  "robot_type": "robomind-ur",
+  "observation_key": [
+    "observations/images/cam_high",
+    "observations/images/cam_wrist"
+  ],
+  "language_instruction_key": "language_instruction",
+  "datalist": [
+    "F:/data/xvla/ur_set_a/demo_0000.hdf5",
+    "F:/data/xvla/ur_set_a/demo_0001.hdf5",
+    "F:/data/xvla/ur_set_a/demo_0002.hdf5"
+  ]
+}
