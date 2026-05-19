@@ -218,3 +218,5 @@ logs/
 metas/
 demo.ipynb
 runnings
+
+analysis/occlusion_saliency

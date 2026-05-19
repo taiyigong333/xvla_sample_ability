@@ -1,0 +1,6 @@
+{
+  "origin_base_xyz_m": [0.0, 0.0, 0.0],
+  "x_new_in_base": [1.0, 0.0, 0.0],
+  "y_new_in_base": [0.0, 1.0, 0.0],
+  "z_new_in_base": [0.0, 0.0, 1.0]
+}

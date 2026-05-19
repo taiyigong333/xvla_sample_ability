@@ -1,0 +1,13 @@
+python F:\research\vla_team\X-VLA\analysis\occlusion_saliency_predict.py `
+--demos "F:\data\data\_data\raw_demos_v5" `
+--out-dir occlusion_saliency `
+--mapping F:\research\vla_team\X-VLA\analysis\config\mapping.json `
+--lora F:\research\vla_team\X-VLA\runnings\w_all_b_10\ckpt-5000 `
+--server-url http://127.0.0.1:8010/act `
+--limit-episodes 1 `
+--grid-size 4 `
+--views main wrist `
+--occlusion mean `
+--eval-steps 10 `
+--seed 12345 `
+--context-policy around_close 
